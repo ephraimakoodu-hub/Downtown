@@ -1,0 +1,147 @@
+/* =====================================================
+   DOWNTOWN SUPERMARKET
+   OFFICIAL DESIGN SYSTEM — MIDNIGHT & GOLD
+===================================================== */
+
+:root {
+  /* BRAND COLOURS */
+
+  --color-primary: #F5B942;
+  --color-primary-hover: #FFD166;
+  --color-primary-soft: rgba(245, 185, 66, 0.12);
+
+  --color-accent: #D99A32;
+  --color-accent-soft: rgba(217, 154, 50, 0.14);
+
+  /* BACKGROUNDS */
+
+  --color-bg: #0F1115;
+  --color-surface: #181B21;
+  --color-surface-raised: #20242C;
+  --color-surface-hover: #252B34;
+
+  /* TEXT */
+
+  --color-text: #F5F5F2;
+  --color-text-muted: #A7ACB5;
+  --color-text-subtle: #777F8C;
+
+  /* BORDERS */
+
+  --color-border: #292E36;
+  --color-border-strong: #3A424E;
+
+  /* STATUS COLOURS */
+
+  --color-danger: #FF6868;
+  --color-danger-soft: rgba(255, 92, 92, 0.13);
+
+  --color-success: #35C759;
+  --color-success-soft: rgba(53, 199, 89, 0.13);
+
+  --color-warning: #FFD166;
+  --color-warning-soft: rgba(255, 209, 102, 0.13);
+
+  --color-info: #60A5FA;
+  --color-info-soft: rgba(96, 165, 250, 0.13);
+
+  /* ACCESSIBILITY */
+
+  --color-focus: #FFD166;
+
+  /* TYPOGRAPHY */
+
+  --font-sans:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+
+  --text-2xl: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
+  --text-3xl: clamp(2rem, 1.5rem + 3vw, 3.25rem);
+
+  --leading: 1.6;
+
+  /* SPACING */
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* BORDERS AND SHAPES */
+
+  --radius-sm: 6px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-full: 999px;
+
+  /* SHADOWS */
+
+  --shadow-1:
+    0 2px 8px rgba(0, 0, 0, 0.20);
+
+  --shadow-2:
+    0 8px 24px rgba(0, 0, 0, 0.28);
+
+  --shadow-3:
+    0 16px 40px rgba(0, 0, 0, 0.35);
+
+  --shadow-gold:
+    0 6px 20px rgba(245, 185, 66, 0.16);
+
+  /* LAYOUT */
+
+  --max-width: 1280px;
+  --tap: 46px;
+
+  /* TRANSITIONS */
+
+  --transition-fast: 150ms ease;
+  --transition-normal: 220ms ease;
+  --transition-slow: 350ms ease;
+}
+
+/* BETTER MOBILE TEXT RENDERING */
+
+html {
+  color-scheme: dark;
+}
+
+/* CONSISTENT FORM COLOURS */
+
+input,
+select,
+textarea {
+  color-scheme: dark;
+}
+
+/* GOLD PRICE COLOUR */
+
+.price {
+  color: var(--color-primary);
+}
+
+/* CONSISTENT SELECTION */
+
+::selection {
+  background: var(--color-primary);
+  color: #17191E;
+}
