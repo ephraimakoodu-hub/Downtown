@@ -7,6 +7,25 @@ import { useAuth } from '../lib/auth.jsx';
 import { useQuote } from './Cart.jsx';
 import { EmptyState, ErrorState } from '../components/States.jsx';
 
+// Generate a unique key for each checkout attempt.
+// This supports browsers where crypto.randomUUID is unavailable.
+function createIdempotencyKey() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  if (globalThis.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+
+    return Array.from(bytes)
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export default function Checkout() {
   const { items, clear } = useCart();
   const { user } = useAuth();
@@ -18,8 +37,12 @@ export default function Checkout() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  // One key per checkout attempt prevents duplicate orders after network retries.
-  const idemKey = useRef(crypto.randomUUID());
+  // Keep one key throughout this checkout attempt.
+  const idemKey = useRef(null);
+
+  if (!idemKey.current) {
+    idemKey.current = createIdempotencyKey();
+  }
 
   const {
     status,
@@ -28,33 +51,33 @@ export default function Checkout() {
     retry
   } = useQuote(items, fulfilment || undefined);
 
-  const fieldError = (n) =>
-    error?.fields?.find((f) => f.field === n)?.message;
+  const fieldError = (name) =>
+    error?.fields?.find((field) => field.field === name)?.message;
 
   const options = useMemo(
     () => ({
-      delivery: quote?.deliveryEnabled,
-      pickup: quote?.pickupEnabled
+      delivery: Boolean(quote?.deliveryEnabled),
+      pickup: Boolean(quote?.pickupEnabled)
     }),
     [quote]
   );
 
   if (user === undefined) {
     return (
-      <div className="container page">
+      <main className="container page">
         <div
           className="skeleton"
           style={{ height: 200 }}
           role="status"
-          aria-label="Loading"
+          aria-label="Loading account"
         />
-      </div>
+      </main>
     );
   }
 
   if (!user) {
     return (
-      <div className="container page">
+      <main className="container page">
         <EmptyState
           title="Sign in to check out"
           actions={
@@ -65,24 +88,24 @@ export default function Checkout() {
         >
           Your cart is saved on this device.
         </EmptyState>
-      </div>
+      </main>
     );
   }
 
   if (!items.length) {
     return (
-      <div className="container page">
+      <main className="container page">
         <EmptyState
           title="Your cart is empty"
           actions={
             <Link className="btn" to="/products">
-              Shop groceries
+              Continue shopping
             </Link>
           }
         >
           Add products before checking out.
         </EmptyState>
-      </div>
+      </main>
     );
   }
 
@@ -106,6 +129,40 @@ export default function Checkout() {
       return;
     }
 
+    if (!phone.trim()) {
+      setError(
+        new ApiError(400, {
+          error: {
+            message: 'Enter your phone number.',
+            fields: [
+              {
+                field: 'contactPhone',
+                message: 'Enter your phone number.'
+              }
+            ]
+          }
+        })
+      );
+      return;
+    }
+
+    if (fulfilment === 'delivery' && !address.trim()) {
+      setError(
+        new ApiError(400, {
+          error: {
+            message: 'Enter your delivery address.',
+            fields: [
+              {
+                field: 'deliveryAddress',
+                message: 'Enter your delivery address.'
+              }
+            ]
+          }
+        })
+      );
+      return;
+    }
+
     setBusy(true);
     setError(null);
 
@@ -120,9 +177,9 @@ export default function Checkout() {
         body: JSON.stringify({
           items,
           fulfilment,
-          contactPhone: phone,
+          contactPhone: phone.trim(),
           ...(fulfilment === 'delivery'
-            ? { deliveryAddress: address }
+            ? { deliveryAddress: address.trim() }
             : {})
         })
       }).catch(() => {
@@ -140,6 +197,15 @@ export default function Checkout() {
         throw new ApiError(res.status, data);
       }
 
+      if (!data?.order?.ref) {
+        throw new ApiError(500, {
+          error: {
+            message:
+              'The server response was incomplete. Please check your orders before trying again.'
+          }
+        });
+      }
+
       clear();
 
       navigate(`/account/orders/${data.order.ref}`, {
@@ -149,7 +215,12 @@ export default function Checkout() {
       setError(
         err instanceof ApiError
           ? err
-          : new ApiError(0, null)
+          : new ApiError(0, {
+              error: {
+                message:
+                  'Something went wrong. Please try again.'
+              }
+            })
       );
     } finally {
       setBusy(false);
@@ -157,17 +228,17 @@ export default function Checkout() {
   }
 
   return (
-    <div className="container page">
+    <main className="container page checkout-page">
       <h1>Checkout</h1>
 
       {status === 'error' && (
         <ErrorState
-          message={qError.message}
+          message={qError?.message || 'Unable to load your order summary.'}
           onRetry={retry}
         />
       )}
 
-      {error && !error.fields && (
+      {error && (
         <div className="alert alert-error" role="alert">
           {error.message}
         </div>
@@ -175,18 +246,18 @@ export default function Checkout() {
 
       {status !== 'error' && (
         <form
-          className="cart-layout"
+          className="cart-layout checkout-layout"
           onSubmit={submit}
           noValidate
         >
-          <div>
+          <div className="checkout-main">
             <fieldset className="panel">
               <legend>1. Delivery or pickup</legend>
 
               {quote && !options.delivery && !options.pickup && (
                 <p className="alert alert-error" role="alert">
-                  Ordering is not available yet. The supermarket has
-                  not switched on delivery or pickup.
+                  Ordering is not available yet. The store has not
+                  switched on delivery or pickup.
                 </p>
               )}
 
@@ -194,10 +265,13 @@ export default function Checkout() {
                 <label className="check">
                   <input
                     type="radio"
-                    name="f"
+                    name="fulfilment"
                     value="pickup"
                     checked={fulfilment === 'pickup'}
-                    onChange={() => setFulfilment('pickup')}
+                    onChange={() => {
+                      setFulfilment('pickup');
+                      setError(null);
+                    }}
                   />
                   Pickup
                 </label>
@@ -207,10 +281,13 @@ export default function Checkout() {
                 <label className="check">
                   <input
                     type="radio"
-                    name="f"
+                    name="fulfilment"
                     value="delivery"
                     checked={fulfilment === 'delivery'}
-                    onChange={() => setFulfilment('delivery')}
+                    onChange={() => {
+                      setFulfilment('delivery');
+                      setError(null);
+                    }}
                   />
                   Delivery
                 </label>
@@ -227,8 +304,8 @@ export default function Checkout() {
               <legend>2. Your details</legend>
 
               <p className="muted">
-                Name and email come from your account: {user.fullName},{' '}
-                {user.email}.
+                Name and email come from your account:{' '}
+                {user.fullName}, {user.email}.
               </p>
 
               <div className="field">
@@ -237,12 +314,14 @@ export default function Checkout() {
                   id="c-phone"
                   type="tel"
                   autoComplete="tel"
+                  inputMode="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   aria-invalid={!!fieldError('contactPhone')}
                   aria-describedby="c-phone-err"
                   required
                 />
+
                 <span id="c-phone-err" className="error">
                   {fieldError('contactPhone')}
                 </span>
@@ -251,15 +330,17 @@ export default function Checkout() {
               {fulfilment === 'delivery' && (
                 <div className="field">
                   <label htmlFor="c-addr">Delivery address</label>
-                  <input
+                  <textarea
                     id="c-addr"
                     autoComplete="street-address"
+                    rows={3}
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     aria-invalid={!!fieldError('deliveryAddress')}
                     aria-describedby="c-addr-err"
                     required
                   />
+
                   <span id="c-addr-err" className="error">
                     {fieldError('deliveryAddress')}
                   </span>
@@ -272,15 +353,12 @@ export default function Checkout() {
 
               <h3>Bank Transfer</h3>
 
-              <p>
-                We accept payment by bank transfer.
-              </p>
+              <p>We accept payment by bank transfer.</p>
 
               <p className="muted">
-                After placing your order, you will see the
-                supermarket's bank name, account name and account
-                number, together with your exact order amount and
-                order reference.
+                After placing your order, you will see the store's
+                bank name, account name and account number, together
+                with your exact order amount and order reference.
               </p>
 
               <p className="muted">
@@ -289,13 +367,13 @@ export default function Checkout() {
               </p>
 
               <p className="muted">
-                Your payment will remain pending until the supermarket
+                Your payment will remain pending until the store
                 verifies that the transfer has been received.
               </p>
             </fieldset>
           </div>
 
-          <aside className="summary" aria-label="Order summary">
+          <aside className="summary checkout-summary" aria-label="Order summary">
             <h2>Order summary</h2>
 
             {status === 'loading' && (
@@ -303,21 +381,24 @@ export default function Checkout() {
                 className="skeleton"
                 style={{ height: 120 }}
                 role="status"
-                aria-label="Loading summary"
+                aria-label="Loading order summary"
               />
             )}
 
-            {status === 'ready' && (
+            {status === 'ready' && quote && (
               <>
                 <ul className="summary-lines">
-                  {quote.lines.map((l) => (
-                    <li key={l.productId}>
+                  {quote.lines.map((line) => (
+                    <li key={line.productId}>
                       <span>
-                        {l.quantity} x {l.name}
+                        {line.quantity} x {line.name}
                       </span>
+
                       <span>
-                        {l.unitPriceKobo != null
-                          ? formatNaira(l.unitPriceKobo * l.quantity)
+                        {line.unitPriceKobo != null
+                          ? formatNaira(
+                              line.unitPriceKobo * line.quantity
+                            )
                           : ''}
                       </span>
                     </li>
@@ -340,8 +421,11 @@ export default function Checkout() {
                   <dt>
                     <strong>Total</strong>
                   </dt>
+
                   <dd>
-                    <strong>{formatNaira(quote.totalKobo)}</strong>
+                    <strong>
+                      {formatNaira(quote.totalKobo)}
+                    </strong>
                   </dd>
                 </dl>
 
@@ -351,18 +435,18 @@ export default function Checkout() {
                 </p>
 
                 <button
-                  className="btn"
+                  className="btn checkout-submit"
                   type="submit"
                   disabled={
                     busy ||
-                    quote.lines.some((l) => l.problem) ||
+                    quote.lines.some((line) => line.problem) ||
                     (!options.delivery && !options.pickup)
                   }
                 >
-                  {busy ? 'Placing order' : 'Place order'}
+                  {busy ? 'Placing order...' : 'Place order'}
                 </button>
 
-                {quote.lines.some((l) => l.problem) && (
+                {quote.lines.some((line) => line.problem) && (
                   <p className="error" role="alert">
                     Some items are unavailable.{' '}
                     <Link to="/cart">Review your cart</Link>.
@@ -373,6 +457,6 @@ export default function Checkout() {
           </aside>
         </form>
       )}
-    </div>
+    </main>
   );
 }

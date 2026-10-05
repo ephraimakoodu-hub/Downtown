@@ -26,7 +26,7 @@ export default function AdminLayout() {
     <div className="admin">
       <a className="skip-link" href="#admin-main">Skip to main content</a>
       <header className="admin-top">
-        <strong>Downtown Supermarket staff</strong>
+        <strong>Downtown F & M staff</strong>
         <span className="muted">{user.fullName} ({user.role.replace('_', ' ')})</span>
         <Link to="/">View shop</Link>
         <button className="btn btn-secondary" type="button" onClick={logout}>Sign out</button>
